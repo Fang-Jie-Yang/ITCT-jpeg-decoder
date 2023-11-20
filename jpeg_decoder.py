@@ -31,7 +31,8 @@ def handle_APP(jpeg):
     return
 
 # Define Quatization Table
-def handle_DQT(jpeg):
+zigzag_order = [(0, 0), (0, 1), (1, 0), (2, 0), (1, 1), (0, 2), (0, 3), (1, 2), (2, 1), (3, 0), (4, 0), (3, 1), (2, 2), (1, 3), (0, 4), (0, 5), (1, 4), (2, 3), (3, 2), (4, 1), (5, 0), (6, 0), (5, 1), (4, 2), (3, 3), (2, 4), (1, 5), (0, 6), (0, 7), (1, 6), (2, 5), (3, 4), (4, 3), (5, 2), (6, 1), (7, 0), (7, 1), (6, 2), (5, 3), (4, 4), (3, 5), (2, 6), (1, 7), (2, 7), (3, 6), (4, 5), (5, 4), (6, 3), (7, 2), (7, 3), (6, 4), (5, 5), (4, 6), (3, 7), (4, 7), (5, 6), (6, 5), (7, 4), (7, 5), (6, 6), (5, 7), (6, 7), (7, 6), (7, 7)]
+def handle_DQT(jpeg, DQTs):
     Lq = bytes_to_int(pop_n(jpeg, 2))
     debug_print(f"  Lq: {Lq}")
     n = 2
@@ -45,6 +46,12 @@ def handle_DQT(jpeg):
         debug_print(f"  Pq: {Pq}")
         debug_print(f"  Tq: {Tq}")
         debug_print(f"  Qk: {Qk}")
+        tmp = [[0 for _ in range(8)] for __ in range(8)]
+        for z in range(64):
+            i, j = zigzag_order[z]
+            tmp[i][j] = (bytes_to_int(pop_n(jpeg, Qk//8)))
+        debug_print(f"  In zigzag: {tmp}")
+        DQTs.append(tmp)
         n += (Qk // 8) * 8 * 8
     return
 
@@ -62,7 +69,9 @@ while True:
         handle_APP(jpeg)
     elif wd == DQT:
         print("DQT")
-        handle_DQT(jpeg)
+        DQTs = []
+        handle_DQT(jpeg, DQTs)
+        break
     else:
         print("X")
         break
