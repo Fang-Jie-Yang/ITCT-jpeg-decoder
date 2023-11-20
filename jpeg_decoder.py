@@ -3,6 +3,7 @@ import sys
 SOI = b'\xFF\xD8'
 APP = b'\xFF\xE0'
 DQT = b'\xFF\xDB'
+DHP = b'\xFF\xC0'
 EOI = b'\xFF\xD9'
 
 def perror(err):
@@ -40,8 +41,8 @@ def handle_DQT(jpeg, DQTs):
         PqTq = bytes_to_int(pop_n(jpeg, 1))
         n += 1
         bits = format(PqTq, '08b')
-        Pq = int(bits[4:8], 2)
-        Tq = int(bits[0:4], 2)
+        Pq = int(bits[0:4], 2)
+        Tq = int(bits[4:8], 2)
         Qk = 8 if Pq == 0 else 16
         debug_print(f"  Pq: {Pq}")
         debug_print(f"  Tq: {Tq}")
@@ -51,8 +52,21 @@ def handle_DQT(jpeg, DQTs):
             i, j = zigzag_order[z]
             tmp[i][j] = (bytes_to_int(pop_n(jpeg, Qk//8)))
         debug_print(f"  In zigzag: {tmp}")
-        DQTs.append(tmp)
+        DQTs[Tq] = tmp
         n += (Qk // 8) * 8 * 8
+    return
+
+def handle_DHP(jpeg):
+    Lf = bytes_to_int(pop_n(jpeg, 2))
+    P = bytes_to_int(pop_n(jpeg, 1))
+    Y = bytes_to_int(pop_n(jpeg, 2))
+    X = bytes_to_int(pop_n(jpeg, 2))
+    Nf = bytes_to_int(pop_n(jpeg, 1))
+    debug_print(f"  Lf: {Lf}")
+    debug_print(f"  P: {P}")
+    debug_print(f"  Y: {Y}")
+    debug_print(f"  X: {X}")
+    debug_print(f"  Nf: {Nf}")
     return
 
 if len(sys.argv) != 2:
@@ -62,16 +76,19 @@ with open(sys.argv[1], 'rb') as f:
 
 if pop_n(jpeg, 2) != SOI:
     perror("File format error")
+
+DQTs = {}
 while True:
     wd = pop_n(jpeg, 2)
     if wd == APP:
-        print("APP")
+        debug_print("APP")
         handle_APP(jpeg)
     elif wd == DQT:
-        print("DQT")
-        DQTs = []
+        debug_print("DQT")
         handle_DQT(jpeg, DQTs)
-        break
+    elif wd == DHP:
+        debug_print("DHP")
+        handle_DHP(jpeg)
     else:
         print("X")
         break
