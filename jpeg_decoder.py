@@ -5,6 +5,7 @@ APP = b'\xFF\xE0'
 DQT = b'\xFF\xDB'
 DHP = b'\xFF\xC0'
 EOI = b'\xFF\xD9'
+DHT = b'\xFF\xC4'
 
 def perror(err):
     print(err)
@@ -88,6 +89,36 @@ def handle_DHP(jpeg, Components):
         Components.append(tmp)
     return
 
+def handle_DHT(jpeg, DHTs):
+    Lh = bytes_to_int(pop_n(jpeg, 2))
+    debug_print(f"  Lh: {Lh}\n")
+    n = 2 
+    while n != Lh:
+        dht = {}
+        Tc, Th = split_byte(bytes_to_int(pop_n(jpeg, 1)))
+        dht['Tc'] = Tc
+        dht['Th'] = Tc
+        debug_print(f"    Tc: {Tc}, Th: {Th}\n")
+        n += 1
+        L = []
+        cnt = 0
+        for _ in range(16):
+            l = bytes_to_int(pop_n(jpeg, 1))
+            cnt += l
+            L.append(l)
+        debug_print(f"    Li: {L}\n")
+        n += 16
+        V = []
+        for i in range(16):
+            v = []
+            for _ in range(L[i]):
+                v.append(bytes_to_int(pop_n(jpeg, 1)))
+            debug_print(f"    V{i + 1},k: {v}\n")
+            V.append(v)
+        dht['V'] = V
+        DHTs.append(dht)
+        n += cnt
+
 if len(sys.argv) != 2:
     perror(f"Usage: {sys.argv[0]} input_jpg")
 with open(sys.argv[1], 'rb') as f:
@@ -98,6 +129,7 @@ if pop_n(jpeg, 2) != SOI:
 
 DQTs = {}
 Components = []
+DHTs = []
 while True:
     wd = pop_n(jpeg, 2)
     if wd == APP:
@@ -109,6 +141,9 @@ while True:
     elif wd == DHP:
         debug_print("DHP\n")
         handle_DHP(jpeg, Components)
+    elif wd == DHT:
+        debug_print("DHT\n")
+        handle_DHT(jpeg, DHTs)
     else:
         print("X")
         break
