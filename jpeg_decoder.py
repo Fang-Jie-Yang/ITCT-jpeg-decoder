@@ -31,9 +31,9 @@ def split_byte(b):
 
 def debug_print_table(indent, t, n, m):
     debug_print(indent + "Table:\n")
-    for i in range(8):
+    for i in range(n):
         debug_print(indent + "  ")
-        for j in range(8):
+        for j in range(m):
             debug_print(f"{t[i][j]:2d} ")
         debug_print("\n")
 
@@ -68,7 +68,7 @@ def handle_DQT(jpeg, DQTs):
         n += (Qk // 8) * 8 * 8
     return
 
-def handle_DHP(jpeg):
+def handle_DHP(jpeg, Components):
     Lf = bytes_to_int(pop_n(jpeg, 2))
     P  = bytes_to_int(pop_n(jpeg, 1))
     Y  = bytes_to_int(pop_n(jpeg, 2))
@@ -79,7 +79,13 @@ def handle_DHP(jpeg):
     debug_print(f"  Y: {Y}\n")
     debug_print(f"  X: {X}\n")
     debug_print(f"  Nf: {Nf}\n")
-    #for _ in range(Nf):
+    tmp = {}
+    for _ in range(Nf):
+        tmp['C'] = bytes_to_int(pop_n(jpeg, 1))
+        tmp['H'], tmp['V'] = split_byte(bytes_to_int(pop_n(jpeg, 1)))
+        tmp['Tq'] = bytes_to_int(pop_n(jpeg, 1))
+        debug_print(f"  {tmp}\n")
+        Components.append(tmp)
     return
 
 if len(sys.argv) != 2:
@@ -91,6 +97,7 @@ if pop_n(jpeg, 2) != SOI:
     perror("File format error")
 
 DQTs = {}
+Components = []
 while True:
     wd = pop_n(jpeg, 2)
     if wd == APP:
@@ -101,7 +108,7 @@ while True:
         handle_DQT(jpeg, DQTs)
     elif wd == DHP:
         debug_print("DHP\n")
-        handle_DHP(jpeg)
+        handle_DHP(jpeg, Components)
     else:
         print("X")
         break
