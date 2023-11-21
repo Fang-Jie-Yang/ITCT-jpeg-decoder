@@ -1,12 +1,12 @@
 import sys
 
-SOI = b'\xFF\xD8'
-APP = b'\xFF\xE0'
-DQT = b'\xFF\xDB'
-DHP = b'\xFF\xC0'
-EOI = b'\xFF\xD9'
-DHT = b'\xFF\xC4'
-SOS = b'\xFF\xDA'
+m_SOI = b'\xFF\xD8'
+m_APP = b'\xFF\xE0'
+m_DQT = b'\xFF\xDB'
+m_DHP = b'\xFF\xC0'
+m_EOI = b'\xFF\xD9'
+m_DHT = b'\xFF\xC4'
+m_SOS = b'\xFF\xDA'
 
 def perror(err):
     print(err)
@@ -39,77 +39,105 @@ def debug_print_table(indent, t, n, m):
             debug_print(f"{t[i][j]:2d} ")
         debug_print("\n")
 
-# Application0
+# Application
 def handle_APP(jpeg):
     APP = {}
-    APP['La'] = bytes_to_int(pop_n(jpeg, 2))
+    La = bytes_to_int(pop_n(jpeg, 2))
+    APP['La'] = La
     debug_print(f"  La: {La}\n")
     # we skip APP for now
     pop_n(jpeg, La - 2)
-    return
+    return APP
 
 zigzag_order = [(0, 0), (0, 1), (1, 0), (2, 0), (1, 1), (0, 2), (0, 3), (1, 2), (2, 1), (3, 0), (4, 0), (3, 1), (2, 2), (1, 3), (0, 4), (0, 5), (1, 4), (2, 3), (3, 2), (4, 1), (5, 0), (6, 0), (5, 1), (4, 2), (3, 3), (2, 4), (1, 5), (0, 6), (0, 7), (1, 6), (2, 5), (3, 4), (4, 3), (5, 2), (6, 1), (7, 0), (7, 1), (6, 2), (5, 3), (4, 4), (3, 5), (2, 6), (1, 7), (2, 7), (3, 6), (4, 5), (5, 4), (6, 3), (7, 2), (7, 3), (6, 4), (5, 5), (4, 6), (3, 7), (4, 7), (5, 6), (6, 5), (7, 4), (7, 5), (6, 6), (5, 7), (6, 7), (7, 6), (7, 7)]
 # Define Quatization Table
-def handle_DQT(jpeg, DQTs):
+def handle_DQT(jpeg):
+    DQT = {}
     Lq = bytes_to_int(pop_n(jpeg, 2))
+    DQT['Lq'] = Lq
     debug_print(f"  Lq: {Lq}\n")
     n = 2
+    Tables = []
     while n != Lq:
-        PqTq = bytes_to_int(pop_n(jpeg, 1))
-        n += 1
-        Pq, Tq = split_byte(PqTq)
+        table = {}
+        Pq, Tq = split_byte(bytes_to_int(pop_n(jpeg, 1)))
         Qk = 8 if Pq == 0 else 16
-        debug_print(f"  Pq: {Pq}\n")
-        debug_print(f"  Tq: {Tq}\n")
-        debug_print(f"  Qk: {Qk}\n")
+        table['Pq'] = Pq
+        table['Tq'] = Tq
+        table['Qk'] = Qk
+        debug_print(f"  Pq: {Pq}, Tq: {Tq}, Qk: {Qk}\n")
+        n += 1
         tmp = [[0 for _ in range(8)] for __ in range(8)]
         for z in range(64):
             i, j = zigzag_order[z]
             tmp[i][j] = (bytes_to_int(pop_n(jpeg, Qk//8)))
+        table['arr'] = tmp
         debug_print_table("    ", tmp, 8, 8)
-        DQTs[Tq] = tmp
+        Tables.append(table)
         n += (Qk // 8) * 8 * 8
-    return
+    DQT['Tables'] = Tables
+    return DQT
 
-def handle_DHP(jpeg, Components):
+def handle_DHP(jpeg):
+    DHP = {}
+
     Lf = bytes_to_int(pop_n(jpeg, 2))
-    P  = bytes_to_int(pop_n(jpeg, 1))
-    Y  = bytes_to_int(pop_n(jpeg, 2))
-    X  = bytes_to_int(pop_n(jpeg, 2))
-    Nf = bytes_to_int(pop_n(jpeg, 1))
+    DHP['Lf'] = Lf
     debug_print(f"  Lf: {Lf}\n")
+
+    P  = bytes_to_int(pop_n(jpeg, 1))
+    DHP['P'] = P
     debug_print(f"  P: {P}\n")
+
+    Y  = bytes_to_int(pop_n(jpeg, 2))
+    DHP['Y'] = Y
     debug_print(f"  Y: {Y}\n")
+
+    X  = bytes_to_int(pop_n(jpeg, 2))
+    DHP['X'] = X
     debug_print(f"  X: {X}\n")
+
+    Nf = bytes_to_int(pop_n(jpeg, 1))
+    DHP['Nf'] = Nf
     debug_print(f"  Nf: {Nf}\n")
-    tmp = {}
+
+    Components = []
     for _ in range(Nf):
+        tmp = {}
         tmp['C'] = bytes_to_int(pop_n(jpeg, 1))
         tmp['H'], tmp['V'] = split_byte(bytes_to_int(pop_n(jpeg, 1)))
         tmp['Tq'] = bytes_to_int(pop_n(jpeg, 1))
         debug_print(f"  {tmp}\n")
         Components.append(tmp)
-    return
+    DHP['Components'] = Components
+    return DHP
 
-def handle_DHT(jpeg, DHTs):
+def handle_DHT(jpeg):
+    DHT = {}
     Lh = bytes_to_int(pop_n(jpeg, 2))
+    DHT['Lh'] = Lh
     debug_print(f"  Lh: {Lh}\n")
     n = 2 
+
+    Tables = []
     while n != Lh:
-        dht = {}
+        table = {}
         Tc, Th = split_byte(bytes_to_int(pop_n(jpeg, 1)))
-        dht['Tc'] = Tc
-        dht['Th'] = Tc
+        table['Tc'] = Tc
+        table['Th'] = Tc
         debug_print(f"    Tc: {Tc}, Th: {Th}\n")
         n += 1
+
         L = []
         cnt = 0
         for _ in range(16):
             l = bytes_to_int(pop_n(jpeg, 1))
             cnt += l
             L.append(l)
+        table['L'] = L
         debug_print(f"    Li: {L}\n")
         n += 16
+
         V = []
         for i in range(16):
             v = []
@@ -117,54 +145,83 @@ def handle_DHT(jpeg, DHTs):
                 v.append(bytes_to_int(pop_n(jpeg, 1)))
             debug_print(f"    V{i + 1},k: {v}\n")
             V.append(v)
-        dht['V'] = V
-        DHTs.append(dht)
+
+        table['V'] = V
+        Tables.append(table)
         n += cnt
+    DHT['Tables'] = Tables
+    return DHT
 
 def handle_SOS(jpeg):
+    SOS = {}
     Ls = bytes_to_int(pop_n(jpeg, 2))
+    SOS['Ls'] = Ls
     debug_print(f"  Ls: {Ls}\n")
+
     Ns = bytes_to_int(pop_n(jpeg, 1))
+    SOS['Ns'] = Ns
     debug_print(f"  Ns: {Ns}\n")
+
+    Scans = [] 
     for _ in range(Ns):
+        scan = {}
         Cs = bytes_to_int(pop_n(jpeg, 1))
+        scan['Cs'] = Cs
         Td, Ta = split_byte(bytes_to_int(pop_n(jpeg, 1)))
+        scan['Td'] = Td
+        scan['Ta'] = Ta
         debug_print(f"    Cs: {Cs}, Td: {Td}, Ta: {Ta}\n")
+        Scans.append(scan)
+    SOS['Scans'] = Scans
+
     Ss = bytes_to_int(pop_n(jpeg, 1))
+    SOS['Ss'] = Ss
     debug_print(f"  Ss: {Ss}\n")
     Se = bytes_to_int(pop_n(jpeg, 1))
+    SOS['Se'] = Se
     debug_print(f"  Se: {Se}\n")
     Ah, Al = split_byte(bytes_to_int(pop_n(jpeg, 1)))
+    SOS['Ah'] = Ah
+    SOS['Al'] = Al
     debug_print(f"  Ah: {Ah}, Al: {Al}\n")
+    return SOS
 
 if len(sys.argv) != 2:
     perror(f"Usage: {sys.argv[0]} input_jpg")
 with open(sys.argv[1], 'rb') as f:
     jpeg = bytearray(f.read())
 
-if pop_n(jpeg, 2) != SOI:
+if pop_n(jpeg, 2) != m_SOI:
     perror("File format error")
 
-DQTs = {}
-Components = []
+APPs = []
+DQTs = []
 DHTs = []
 while True:
     wd = pop_n(jpeg, 2)
-    if wd == APP:
+    if wd == m_APP:
         debug_print("APP\n")
-        handle_APP(jpeg)
-    elif wd == DQT:
+        APP = handle_APP(jpeg)
+        print(APP)
+        APPs.append(APP)
+    elif wd == m_DQT:
         debug_print("DQT\n")
-        handle_DQT(jpeg, DQTs)
-    elif wd == DHP:
+        DQT = handle_DQT(jpeg)
+        print(DQT)
+        DQTs.append(DQT)
+    elif wd == m_DHP:
         debug_print("DHP\n")
-        handle_DHP(jpeg, Components)
-    elif wd == DHT:
+        DHP = handle_DHP(jpeg)
+        print(DHP)
+    elif wd == m_DHT:
         debug_print("DHT\n")
-        handle_DHT(jpeg, DHTs)
-    elif wd == SOS:
+        DHT = handle_DHT(jpeg)
+        print(DHT)
+        DHTs.append(DHT)
+    elif wd == m_SOS:
         debug_print("SOS\n")
-        handle_SOS(jpeg)
+        SOS = handle_SOS(jpeg)
+        print(SOS)
     else:
         print(wd)
         print("X")
