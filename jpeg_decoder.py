@@ -6,6 +6,7 @@ DQT = b'\xFF\xDB'
 DHP = b'\xFF\xC0'
 EOI = b'\xFF\xD9'
 DHT = b'\xFF\xC4'
+SOS = b'\xFF\xDA'
 
 def perror(err):
     print(err)
@@ -40,10 +41,11 @@ def debug_print_table(indent, t, n, m):
 
 # Application0
 def handle_APP(jpeg):
-    La = bytes_to_int(pop_n(jpeg, 2))
+    APP = {}
+    APP['La'] = bytes_to_int(pop_n(jpeg, 2))
     debug_print(f"  La: {La}\n")
-    pop_n(jpeg, La - 2)
     # we skip APP for now
+    pop_n(jpeg, La - 2)
     return
 
 zigzag_order = [(0, 0), (0, 1), (1, 0), (2, 0), (1, 1), (0, 2), (0, 3), (1, 2), (2, 1), (3, 0), (4, 0), (3, 1), (2, 2), (1, 3), (0, 4), (0, 5), (1, 4), (2, 3), (3, 2), (4, 1), (5, 0), (6, 0), (5, 1), (4, 2), (3, 3), (2, 4), (1, 5), (0, 6), (0, 7), (1, 6), (2, 5), (3, 4), (4, 3), (5, 2), (6, 1), (7, 0), (7, 1), (6, 2), (5, 3), (4, 4), (3, 5), (2, 6), (1, 7), (2, 7), (3, 6), (4, 5), (5, 4), (6, 3), (7, 2), (7, 3), (6, 4), (5, 5), (4, 6), (3, 7), (4, 7), (5, 6), (6, 5), (7, 4), (7, 5), (6, 6), (5, 7), (6, 7), (7, 6), (7, 7)]
@@ -119,6 +121,22 @@ def handle_DHT(jpeg, DHTs):
         DHTs.append(dht)
         n += cnt
 
+def handle_SOS(jpeg):
+    Ls = bytes_to_int(pop_n(jpeg, 2))
+    debug_print(f"  Ls: {Ls}\n")
+    Ns = bytes_to_int(pop_n(jpeg, 1))
+    debug_print(f"  Ns: {Ns}\n")
+    for _ in range(Ns):
+        Cs = bytes_to_int(pop_n(jpeg, 1))
+        Td, Ta = split_byte(bytes_to_int(pop_n(jpeg, 1)))
+        debug_print(f"    Cs: {Cs}, Td: {Td}, Ta: {Ta}\n")
+    Ss = bytes_to_int(pop_n(jpeg, 1))
+    debug_print(f"  Ss: {Ss}\n")
+    Se = bytes_to_int(pop_n(jpeg, 1))
+    debug_print(f"  Se: {Se}\n")
+    Ah, Al = split_byte(bytes_to_int(pop_n(jpeg, 1)))
+    debug_print(f"  Ah: {Ah}, Al: {Al}\n")
+
 if len(sys.argv) != 2:
     perror(f"Usage: {sys.argv[0]} input_jpg")
 with open(sys.argv[1], 'rb') as f:
@@ -144,7 +162,11 @@ while True:
     elif wd == DHT:
         debug_print("DHT\n")
         handle_DHT(jpeg, DHTs)
+    elif wd == SOS:
+        debug_print("SOS\n")
+        handle_SOS(jpeg)
     else:
+        print(wd)
         print("X")
         break
 
