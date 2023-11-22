@@ -1,12 +1,13 @@
 import sys
 
-m_SOI = b'\xFF\xD8'
-m_APP = b'\xFF\xE0'
-m_DQT = b'\xFF\xDB'
-m_DHP = b'\xFF\xC0'
-m_EOI = b'\xFF\xD9'
-m_DHT = b'\xFF\xC4'
-m_SOS = b'\xFF\xDA'
+m_SOI   = b'\xFF\xD8'
+m_APP   = b'\xFF\xE0'
+m_DQT   = b'\xFF\xDB'
+m_SOF_0 = b'\xFF\xC0'
+m_EOI   = b'\xFF\xD9'
+m_DHT   = b'\xFF\xC4'
+m_SOS   = b'\xFF\xDA'
+m_DHP   = b'\xFF\xDE'
 
 def perror(err):
     print(err)
@@ -101,16 +102,19 @@ def handle_DHP(jpeg):
     DHP['Nf'] = Nf
     debug_print(f"  Nf: {Nf}\n")
 
-    Components = []
+    Components = {}
     for _ in range(Nf):
         tmp = {}
         tmp['C'] = bytes_to_int(pop_n(jpeg, 1))
         tmp['H'], tmp['V'] = split_byte(bytes_to_int(pop_n(jpeg, 1)))
         tmp['Tq'] = bytes_to_int(pop_n(jpeg, 1))
         debug_print(f"  {tmp}\n")
-        Components.append(tmp)
+        Components[tmp['C']] = tmp
     DHP['Components'] = Components
     return DHP
+
+def handle_SOF_0(jpeg):
+    return handle_DHP(jpeg)
 
 def handle_DHT(jpeg):
     DHT = {}
@@ -186,6 +190,36 @@ def handle_SOS(jpeg):
     debug_print(f"  Ah: {Ah}, Al: {Al}\n")
     return SOS
 
+def handle_data(jpeg):
+
+    bits = ''.join(format(byte, '08b') for byte in jpeg)
+
+    def handle_MCU(bits):
+
+        def handle_block(bits):
+
+            def handle_bits(bits):
+
+            for i in range(8):
+                for j in range(8):
+
+
+        # Y, Cb, Cr
+        for C in [1, 2, 3]:
+            component = SOF_0['Components'][C]
+            for i in range(component['V']):
+                for j in range(component['H']):
+                    handle_block(bits)
+
+
+
+
+
+            
+
+
+
+
 if len(sys.argv) != 2:
     perror(f"Usage: {sys.argv[0]} input_jpg")
 with open(sys.argv[1], 'rb') as f:
@@ -197,6 +231,7 @@ if pop_n(jpeg, 2) != m_SOI:
 APPs = []
 DQTs = []
 DHTs = []
+SOFs = []
 while True:
     wd = pop_n(jpeg, 2)
     if wd == m_APP:
@@ -222,6 +257,11 @@ while True:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
         print(SOS)
+    # Note we only handle SOF_0
+    elif wd == m_SOF_0:
+        debug_print("SOF_0\n")
+        SOF_0 = handle_SOF_0(jpeg)
+        print(SOF_0)
     else:
         print(wd)
         print("X")
