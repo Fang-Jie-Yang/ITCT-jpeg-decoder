@@ -1,4 +1,5 @@
 import sys
+from math import ceil
 import numpy as np
 from scipy.fft import idct
 
@@ -285,13 +286,8 @@ def handle_block(bits, dcht, acht, qt):
     return bits, block
 
 def handle_MCU(bits):
-    global last_dc
     Comps = SOF_0['Components']
     Y, Cb, Cr = 1, 2, 3
-    mcu_v = 8 * max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
-    mcu_h = 8 * max(Comps[Y]['H'], Comps[Cb]['H'], Comps[Cr]['H'])
-    MCU = [[[0, 0 ,0] for _ in range(mcu_h)] for __ in range(mcu_v)]
-    # Y, Cb, Cr
     Blocks = {}
     for C in [Y, Cb, Cr]:
         scan = SOS['Scans'][C]
@@ -307,21 +303,63 @@ def handle_MCU(bits):
         last_dc = 0
         for i in range(v):
             for j in range(h):
-                #Blocks[C][i][j] = handle_block(bits, dcht, acht)
                 bits, b = handle_block(bits, dcht, acht, qt)
                 Blocks[C][i][j] = b
-    return bits, Blocks
-
+                print(b)
+    # up sample 
+    max_v = max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
+    max_h = max(Comps[Y]['H'], Comps[Cb]['H'], Comps[Cr]['H'])
+    mcu_v = 8 * max_v
+    mcu_h = 8 * max_h
+    MCU = [[[0, 0 ,0] for _ in range(mcu_h)] for __ in range(mcu_v)]
+    for C in [Y, Cb, Cr]:
+        comp = SOF_0['Components'][C]
+        v = comp['V']
+        h = comp['H']
+        cb = Blocks[C]
+        for i in range(mcu_v):
+            for j in range(mcu_h):
+                ii = i * v // max_v
+                jj = i * h // max_h
+                MCU[i][j][C-1] = cb[ii // 8][jj // 8][ii % 8][jj % 8]
+    # map to RGB
+    def bound(x):
+        if x > 255:
+            return 255
+        elif x < 0:
+            return 0
+        else:
+            return round(x)
+    rgb = [[[0, 0, 0] for _ in range(mcu_h)] for __ in range(mcu_v)]
+    for i in range(mcu_v):
+        for j in range(mcu_h):
+            y, cb, cr = MCU[i][j]
+            rgb[i][j][0] = bound(y + 1.402*cr + 128)
+            rgb[i][j][1] = bound(y - 0.34414*cb - 0.71414*cr + 128)
+            rgb[i][j][2] = bound(y + 1.772*cb + 128)
+    return bits, rgb
 
 def handle_data(jpeg):
+    x = SOF_0['X']
+    y = SOF_0['Y']
+    pixels = [[[0, 0, 0] for _ in range(x)] for __ in range(y)]
     bits = ''.join(format(byte, '08b') for byte in jpeg)
-    bits, mcu = handle_MCU(bits)
-    print(mcu[1][0][0])
-    print(mcu[1][0][1])
-    print(mcu[1][1][0])
-    print(mcu[1][1][1])
-    print(mcu[2][0][0])
-    print(mcu[3][0][0])
+    Comps = SOF_0['Components']
+    Y, Cb, Cr = 1, 2, 3
+    v = max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
+    h = max(Comps[Y]['H'], Comps[Cb]['H'], Comps[Cr]['H'])
+    for i in range(ceil(y / v)):
+        for j in range(ceil(x / h)):
+            bits, rgb = handle_MCU(bits)
+            mcu_v = len(rgb)
+            mcu_h = len(rgb[0])
+            for ii in range(mcu_v):
+                if i * mcu_v + ii >= y:
+                    break
+                for jj in range(mcu_h):
+                    if j * mcu_h + jj >= x:
+                        break
+                    pixels[i * mcu_v + ii][j * mcu_h + jj] = rgb[ii][jj]
     perror("temp")
 
 def contruct_huffman_table(Tables, dht):
