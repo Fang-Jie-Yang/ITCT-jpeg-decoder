@@ -2,6 +2,7 @@ import sys
 from math import ceil
 import numpy as np
 from scipy.fft import idct
+from bmp import *
 
 m_SOI   = b'\xFF\xD8'
 m_APP   = b'\xFF\xE0'
@@ -370,7 +371,7 @@ def handle_data(jpeg):
     #bits, rgb = handle_MCU(bits)
     #perror("temp")
 
-    pixels = [[[0, 0, 0] for _ in range(x)] for __ in range(y)]
+    pixels = [[0 for _ in range(x)] for __ in range(y)]
     Comps = SOF_0['Components']
     Y, Cb, Cr = 1, 2, 3
     v = max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
@@ -386,8 +387,9 @@ def handle_data(jpeg):
                 for jj in range(mcu_h):
                     if j * mcu_h + jj >= x:
                         break
-                    pixels[i * mcu_v + ii][j * mcu_h + jj] = rgb[ii][jj]
-    perror("temp")
+                    rgb888 = rgb[ii][jj][0] << 16 + rgb[ii][jj][1] << 8 + rgb[ii][jj][2]
+                    pixels[i * mcu_v + ii][j * mcu_h + jj] = rgb888
+    return pixels
 
 def contruct_huffman_table(Tables, dht):
     for table in dht['Tables']:
@@ -463,7 +465,13 @@ while True:
         #    print(k, hex(Huffman_Tables[1][1][k]))
         #print("-"*50)
         #perror("temp1")
-        handle_data(jpeg)
+        pixels = handle_data(jpeg)
+        image = bmp(SOF_0['X'], SOF_0['Y'])
+        image.gen_bmp_header()
+        image.fill_image(pixels)
+        image.save_image("save1.bmp")
+
+
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
         debug_print("SOF_0\n")
