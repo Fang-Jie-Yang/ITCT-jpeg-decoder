@@ -194,20 +194,65 @@ def decode_dc(bits, dcht):
     start = -1
     for i in range(1, 17):
         if bits[:i] in dcht:
+            #print("dc:", bits[:i])
             read_len = dcht[bits[:i]]
+            #print(f"{read_len=}")
             code = bits[i:i+read_len]
+            #print("dc:", code)
+            bits = bits[i+read_len:]
             if code[0] == '0':
-               return -((2**read_len - 1) - int(code, 2))
+                return bits, -((2**read_len - 1) - int(code, 2))
             else:
-                return int(code, 2)
+                return bits, int(code, 2)
     perror("DC decode failed")
 
+# return remaining bitstream, value, # of zeros
+def decode_ac(bits, acht):
+    for i in range(1, 17):
+        if bits[:i] in acht:
+            #print("ac:", bits[:i])
+            out = acht[bits[:i]]
+            if out == 0x00:
+                return bits[i:], 0, 64
+            if out == 0xF0:
+                return bits[i:], 0, 15
+            #print(f"{out=}")
+            nz, read_len = split_byte(out)
+            code = bits[i:i+read_len]
+            #print("ac:", code)
+            bits = bits[i+read_len:]
+            if code[0] == '0':
+                val = -((2**read_len - 1) - int(code, 2))
+            else:
+                val = int(code, 2)
+            return bits, val, nz
+    perror("AC decode failed")
+
 def handle_block(bits, dcht, acht):
+    print(bits[:100])
     block = [[0 for _ in range(8)] for _ in range(8)]
-    block[0][0] = decode_dc(bits, dcht)
-    print(block[0][0])
-    perror("temp")
-    #for i in range(1, 64):
+    serial = []
+    i = 0
+    while i < 64:
+        if i == 0:
+            bits, val = decode_dc(bits, dcht)
+            #print("decode_dc:", val)
+            serial.append(val)
+            i += 1
+        else:
+            bits, val, nz = decode_ac(bits, acht)
+            #print("decode_ac:", val)
+            for _ in range(nz):
+                serial.append(0)
+                i += 1
+                if i >= 63:
+                    break
+            serial.append(val)
+            i += 1
+    for z in range(64):
+        i, j = zigzag_order[z]
+        block[i][j] = serial[z]
+    return block
 
 def handle_MCU(bits):
     Comps = SOF_0['Components']
@@ -229,7 +274,11 @@ def handle_MCU(bits):
         Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
         for i in range(v):
             for j in range(h):
-                Blocks[C][i][j] = handle_block(bits, dcht, acht)
+                #Blocks[C][i][j] = handle_block(bits, dcht, acht)
+                b = handle_block(bits, dcht, acht)
+                debug_print_table("    ", b, 8, 8)
+                perror("temp")
+
 
 def handle_data(jpeg):
     bits = ''.join(format(byte, '08b') for byte in jpeg)
@@ -289,6 +338,7 @@ while True:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
         print(SOS)
+        print(Huffman_Tables)
         handle_data(jpeg)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
