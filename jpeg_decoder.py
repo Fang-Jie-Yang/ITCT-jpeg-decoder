@@ -37,9 +37,9 @@ def split_byte(b):
 def debug_print_table(t, n, m):
     debug_print("    Table:\n")
     for i in range(n):
-        debug_print("  ")
+        debug_print("      ")
         for j in range(m):
-            debug_print(f"{t[i][j]:2d} ")
+            debug_print(f"{t[i][j]:4d} ")
         debug_print("\n")
 
 # Application
@@ -191,16 +191,19 @@ def handle_SOS(jpeg):
     debug_print(f"  Ah: {Ah}, Al: {Al}\n")
     return SOS
 
+# return remaining bitstream, value
 def decode_dc(bits, dcht):
     read_len = -1
     start = -1
     for i in range(1, 17):
         if bits[:i] in dcht:
-            #print("dc:", bits[:i])
+            print("dc:", bits[:i])
             read_len = dcht[bits[:i]]
-            #print(f"{read_len=}")
+            print(f"{read_len=}")
+            if read_len == 0:
+                return bits[i:], 0
             code = bits[i:i+read_len]
-            #print("dc:", code)
+            print("dc:", code)
             bits = bits[i+read_len:]
             if code[0] == '0':
                 return bits, -((2**read_len - 1) - int(code, 2))
@@ -233,14 +236,17 @@ def decode_ac(bits, acht):
 def idct2(block):
     return idct(idct(block.T, norm='ortho').T, norm='ortho')
 
+last_dc = 0
 def handle_block(bits, dcht, acht, qt):
-    print(bits[:100])
+    global last_dc
     block = [[0 for _ in range(8)] for _ in range(8)]
     serial = []
     i = 0
     while i < 64:
         if i == 0:
             bits, val = decode_dc(bits, dcht)
+            val += last_dc
+            last_dc = val
             #print("decode_dc:", val)
             serial.append(val)
             i += 1
@@ -276,9 +282,10 @@ def handle_block(bits, dcht, acht, qt):
         for j in range(8):
             block[i][j] += 128
     debug_print_table(block, 8, 8)
-    return block
+    return bits, block
 
 def handle_MCU(bits):
+    global last_dc
     Comps = SOF_0['Components']
     Y, Cb, Cr = 1, 2, 3
     mcu_v = 8 * max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
@@ -297,17 +304,25 @@ def handle_MCU(bits):
         acht = Huffman_Tables[1][Ta]
         qt   = Quantization_Tables[comp['Tq']]
         Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
+        last_dc = 0
         for i in range(v):
             for j in range(h):
                 #Blocks[C][i][j] = handle_block(bits, dcht, acht)
-                b = handle_block(bits, dcht, acht, qt)
+                bits, b = handle_block(bits, dcht, acht, qt)
                 Blocks[C][i][j] = b
-                perror("temp")
+    return bits, Blocks
 
 
 def handle_data(jpeg):
     bits = ''.join(format(byte, '08b') for byte in jpeg)
-    handle_MCU(bits)
+    bits, mcu = handle_MCU(bits)
+    print(mcu[1][0][0])
+    print(mcu[1][0][1])
+    print(mcu[1][1][0])
+    print(mcu[1][1][1])
+    print(mcu[2][0][0])
+    print(mcu[3][0][0])
+    perror("temp")
 
 def contruct_huffman_table(Tables, dht):
     for table in dht['Tables']:
@@ -369,14 +384,14 @@ while True:
     elif wd == m_SOS:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
-        print(SOS)
+        #print(SOS)
         print(Huffman_Tables)
         handle_data(jpeg)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
         debug_print("SOF_0\n")
         SOF_0 = handle_SOF_0(jpeg)
-        print(SOF_0)
+        #print(SOF_0)
     else:
         print(wd)
         print("X")
