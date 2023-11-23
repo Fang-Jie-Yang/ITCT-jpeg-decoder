@@ -128,7 +128,7 @@ def handle_DHT(jpeg):
         table = {}
         Tc, Th = split_byte(bytes_to_int(pop_n(jpeg, 1)))
         table['Tc'] = Tc
-        table['Th'] = Tc
+        table['Th'] = Th
         debug_print(f"    Tc: {Tc}, Th: {Th}\n")
         n += 1
 
@@ -149,7 +149,6 @@ def handle_DHT(jpeg):
                 v.append(bytes_to_int(pop_n(jpeg, 1)))
             debug_print(f"    V{i + 1},k: {v}\n")
             V.append(v)
-
         table['V'] = V
         Tables.append(table)
         n += cnt
@@ -190,34 +189,50 @@ def handle_SOS(jpeg):
     debug_print(f"  Ah: {Ah}, Al: {Al}\n")
     return SOS
 
-def handle_data(jpeg):
+#def decode_dc(bits, dcht):
 
+#def handle_block(bits, dcht, acht):
+#    block = [[0 for _ in range(8)] for _ in range(8)]
+#    block[0][0] = decode_dc(bits, dcht)
+#    for i in range(1, 64):
+
+def handle_MCU(bits):
+    Comps = SOF_0['Components']
+    mcu_v = 8 * max(Comps[0]['V'], Comps[1]['V'], Comps[2]['V'])
+    mcu_h = 8 * max(Comps[0]['H'], Comps[1]['H'], Comps[2]['H'])
+    MCU = [[[0, 0 ,0] for _ in range(mcu_h)] for __ in range(mcu_v)]
+    # Y, Cb, Cr
+    Y, Cb, Cr = 1, 2, 3
+    Blocks = {}
+    for C in [Y, Cb, Cr]:
+        component = SOF_0['Components'][C]
+        Td = component['Td']
+        Tc = component['Tc']
+        dcht = DHT['Tables'][0][Td]
+        acht = DHT['Tables'][1][Ta]
+        v = component['V']
+        h = component['H']
+        Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
+        for i in range(v):
+            for j in range(h):
+                Blocks[C][i][j] = handle_block(bits, dcht, acht)
+
+def handle_data(jpeg):
     bits = ''.join(format(byte, '08b') for byte in jpeg)
 
-    def handle_MCU(bits):
 
-        def handle_block(bits):
-
-            def handle_bits(bits):
-
-            for i in range(8):
-                for j in range(8):
-
-
-        # Y, Cb, Cr
-        for C in [1, 2, 3]:
-            component = SOF_0['Components'][C]
-            for i in range(component['V']):
-                for j in range(component['H']):
-                    handle_block(bits)
-
-
-
-
-
-            
-
-
+def contruct_huffman_table(Tables, dht):
+    for table in dht['Tables']:
+        result_map = {}
+        V = table['V']
+        code_len = -1
+        key = 0
+        for l in range(16):
+            for val in V[l]:
+                result_map[format(key, f'0{l + 1}b')] = val
+                key += 1
+            key *= 2
+        Tables[table['Tc']][table['Th']] = result_map
 
 
 if len(sys.argv) != 2:
@@ -232,36 +247,40 @@ APPs = []
 DQTs = []
 DHTs = []
 SOFs = []
+# DC, AC
+Huffman_Tables = [{}, {}]
 while True:
     wd = pop_n(jpeg, 2)
     if wd == m_APP:
         debug_print("APP\n")
         APP = handle_APP(jpeg)
-        print(APP)
+        #print(APP)
         APPs.append(APP)
     elif wd == m_DQT:
         debug_print("DQT\n")
         DQT = handle_DQT(jpeg)
-        print(DQT)
+        #print(DQT)
         DQTs.append(DQT)
     elif wd == m_DHP:
         debug_print("DHP\n")
         DHP = handle_DHP(jpeg)
-        print(DHP)
+        #print(DHP)
     elif wd == m_DHT:
         debug_print("DHT\n")
         DHT = handle_DHT(jpeg)
-        print(DHT)
+        #print(DHT)
         DHTs.append(DHT)
+        contruct_huffman_table(Huffman_Tables, DHT)
+        #print(Huffman_Tables)
     elif wd == m_SOS:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
-        print(SOS)
+        #print(SOS)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
         debug_print("SOF_0\n")
         SOF_0 = handle_SOF_0(jpeg)
-        print(SOF_0)
+        #print(SOF_0)
     else:
         print(wd)
         print("X")
