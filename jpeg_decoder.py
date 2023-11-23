@@ -1,4 +1,6 @@
 import sys
+import numpy as np
+from scipy.fft import idct
 
 m_SOI   = b'\xFF\xD8'
 m_APP   = b'\xFF\xE0'
@@ -32,10 +34,10 @@ def split_byte(b):
     b = int(bits[4:8], 2)
     return a, b
 
-def debug_print_table(indent, t, n, m):
-    debug_print(indent + "Table:\n")
+def debug_print_table(t, n, m):
+    debug_print("    Table:\n")
     for i in range(n):
-        debug_print(indent + "  ")
+        debug_print("  ")
         for j in range(m):
             debug_print(f"{t[i][j]:2d} ")
         debug_print("\n")
@@ -73,7 +75,7 @@ def handle_DQT(jpeg):
             i, j = zigzag_order[z]
             tmp[i][j] = (bytes_to_int(pop_n(jpeg, Qk//8)))
         table['arr'] = tmp
-        debug_print_table("    ", tmp, 8, 8)
+        debug_print_table(tmp, 8, 8)
         Tables.append(table)
         n += (Qk // 8) * 8 * 8
     DQT['Tables'] = Tables
@@ -228,7 +230,10 @@ def decode_ac(bits, acht):
             return bits, val, nz
     perror("AC decode failed")
 
-def handle_block(bits, dcht, acht):
+def idct2(block):
+    return idct(idct(block.T, norm='ortho').T, norm='ortho')
+
+def handle_block(bits, dcht, acht, qt):
     print(bits[:100])
     block = [[0 for _ in range(8)] for _ in range(8)]
     serial = []
@@ -249,9 +254,28 @@ def handle_block(bits, dcht, acht):
                     break
             serial.append(val)
             i += 1
+    # de Zig-Zag
     for z in range(64):
         i, j = zigzag_order[z]
         block[i][j] = serial[z]
+    debug_print_table(block, 8, 8)
+    # de Quantization
+    for i in range(8):
+        for j in range(8):
+            block[i][j] *= qt[i][j]
+    debug_print_table(block, 8, 8)
+    # IDCT
+    block = idct2(np.array(block))
+    for i in range(8):
+        for j in range(8):
+            block[i][j] = round(block[i][j])
+    block = block.astype(np.int64)
+    debug_print_table(block, 8, 8)
+    # level shift
+    for i in range(8):
+        for j in range(8):
+            block[i][j] += 128
+    debug_print_table(block, 8, 8)
     return block
 
 def handle_MCU(bits):
@@ -271,12 +295,13 @@ def handle_MCU(bits):
         h = comp['H']
         dcht = Huffman_Tables[0][Td]
         acht = Huffman_Tables[1][Ta]
+        qt   = Quantization_Tables[comp['Tq']]
         Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
         for i in range(v):
             for j in range(h):
                 #Blocks[C][i][j] = handle_block(bits, dcht, acht)
-                b = handle_block(bits, dcht, acht)
-                debug_print_table("    ", b, 8, 8)
+                b = handle_block(bits, dcht, acht, qt)
+                Blocks[C][i][j] = b
                 perror("temp")
 
 
@@ -297,6 +322,11 @@ def contruct_huffman_table(Tables, dht):
             key *= 2
         Tables[table['Tc']][table['Th']] = result_map
 
+def contruct_quantization_table(Quantization_Tables, dqt):
+    for table in dqt['Tables']:
+        print(table)
+        Quantization_Tables[table['Tq']] = table['arr']
+
 if len(sys.argv) != 2:
     perror(f"Usage: {sys.argv[0]} input_jpg")
 with open(sys.argv[1], 'rb') as f:
@@ -311,6 +341,7 @@ DHTs = []
 SOFs = []
 # DC, AC
 Huffman_Tables = [{}, {}]
+Quantization_Tables = {}
 while True:
     wd = pop_n(jpeg, 2)
     if wd == m_APP:
@@ -322,6 +353,7 @@ while True:
         debug_print("DQT\n")
         DQT = handle_DQT(jpeg)
         #print(DQT)
+        contruct_quantization_table(Quantization_Tables, DQT)
         DQTs.append(DQT)
     elif wd == m_DHP:
         debug_print("DHP\n")
