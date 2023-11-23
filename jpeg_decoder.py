@@ -165,7 +165,7 @@ def handle_SOS(jpeg):
     SOS['Ns'] = Ns
     debug_print(f"  Ns: {Ns}\n")
 
-    Scans = [] 
+    Scans = {}
     for _ in range(Ns):
         scan = {}
         Cs = bytes_to_int(pop_n(jpeg, 1))
@@ -174,7 +174,7 @@ def handle_SOS(jpeg):
         scan['Td'] = Td
         scan['Ta'] = Ta
         debug_print(f"    Cs: {Cs}, Td: {Td}, Ta: {Ta}\n")
-        Scans.append(scan)
+        Scans[Cs] = scan
     SOS['Scans'] = Scans
 
     Ss = bytes_to_int(pop_n(jpeg, 1))
@@ -189,29 +189,43 @@ def handle_SOS(jpeg):
     debug_print(f"  Ah: {Ah}, Al: {Al}\n")
     return SOS
 
-#def decode_dc(bits, dcht):
+def decode_dc(bits, dcht):
+    read_len = -1
+    start = -1
+    for i in range(1, 17):
+        if bits[:i] in dcht:
+            read_len = dcht[bits[:i]]
+            code = bits[i:i+read_len]
+            if code[0] == '0':
+               return -((2**read_len - 1) - int(code, 2))
+            else:
+                return int(code, 2)
+    perror("DC decode failed")
 
-#def handle_block(bits, dcht, acht):
-#    block = [[0 for _ in range(8)] for _ in range(8)]
-#    block[0][0] = decode_dc(bits, dcht)
-#    for i in range(1, 64):
+def handle_block(bits, dcht, acht):
+    block = [[0 for _ in range(8)] for _ in range(8)]
+    block[0][0] = decode_dc(bits, dcht)
+    print(block[0][0])
+    perror("temp")
+    #for i in range(1, 64):
 
 def handle_MCU(bits):
     Comps = SOF_0['Components']
-    mcu_v = 8 * max(Comps[0]['V'], Comps[1]['V'], Comps[2]['V'])
-    mcu_h = 8 * max(Comps[0]['H'], Comps[1]['H'], Comps[2]['H'])
+    Y, Cb, Cr = 1, 2, 3
+    mcu_v = 8 * max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
+    mcu_h = 8 * max(Comps[Y]['H'], Comps[Cb]['H'], Comps[Cr]['H'])
     MCU = [[[0, 0 ,0] for _ in range(mcu_h)] for __ in range(mcu_v)]
     # Y, Cb, Cr
-    Y, Cb, Cr = 1, 2, 3
     Blocks = {}
     for C in [Y, Cb, Cr]:
-        component = SOF_0['Components'][C]
-        Td = component['Td']
-        Tc = component['Tc']
-        dcht = DHT['Tables'][0][Td]
-        acht = DHT['Tables'][1][Ta]
-        v = component['V']
-        h = component['H']
+        scan = SOS['Scans'][C]
+        comp = SOF_0['Components'][C]
+        Td = scan['Td']
+        Ta = scan['Ta']
+        v = comp['V']
+        h = comp['H']
+        dcht = Huffman_Tables[0][Td]
+        acht = Huffman_Tables[1][Ta]
         Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
         for i in range(v):
             for j in range(h):
@@ -219,7 +233,7 @@ def handle_MCU(bits):
 
 def handle_data(jpeg):
     bits = ''.join(format(byte, '08b') for byte in jpeg)
-
+    handle_MCU(bits)
 
 def contruct_huffman_table(Tables, dht):
     for table in dht['Tables']:
@@ -233,7 +247,6 @@ def contruct_huffman_table(Tables, dht):
                 key += 1
             key *= 2
         Tables[table['Tc']][table['Th']] = result_map
-
 
 if len(sys.argv) != 2:
     perror(f"Usage: {sys.argv[0]} input_jpg")
@@ -275,12 +288,13 @@ while True:
     elif wd == m_SOS:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
-        #print(SOS)
+        print(SOS)
+        handle_data(jpeg)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
         debug_print("SOF_0\n")
         SOF_0 = handle_SOF_0(jpeg)
-        #print(SOF_0)
+        print(SOF_0)
     else:
         print(wd)
         print("X")
