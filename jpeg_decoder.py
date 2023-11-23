@@ -198,14 +198,16 @@ def decode_dc(bits, dcht):
     start = -1
     for i in range(1, 17):
         if bits[:i] in dcht:
-            print("dc:", bits[:i])
-            read_len = dcht[bits[:i]]
+            code = bits[:i]
+            bits = bits[i:]
+            print("dc:", code)
+            read_len = dcht[code]
             print(f"{read_len=}")
             if read_len == 0:
-                return bits[i:], 0
-            code = bits[i:i+read_len]
+                return bits, 0
+            code = bits[:read_len]
+            bits = bits[read_len:]
             print("dc:", code)
-            bits = bits[i+read_len:]
             if code[0] == '0':
                 return bits, -((2**read_len - 1) - int(code, 2))
             else:
@@ -216,17 +218,19 @@ def decode_dc(bits, dcht):
 def decode_ac(bits, acht):
     for i in range(1, 17):
         if bits[:i] in acht:
-            #print("ac:", bits[:i])
-            out = acht[bits[:i]]
+            code = bits[:i]
+            bits = bits[i:]
+            #print("ac:", code)
+            out = acht[code]
             if out == 0x00:
-                return bits[i:], 0, 64
+                return bits, 0, 64
             if out == 0xF0:
-                return bits[i:], 0, 15
+                return bits, 0, 15
             #print(f"{out=}")
             nz, read_len = split_byte(out)
-            code = bits[i:i+read_len]
+            code = bits[:read_len]
+            bits = bits[read_len:]
             #print("ac:", code)
-            bits = bits[i+read_len:]
             if code[0] == '0':
                 val = -((2**read_len - 1) - int(code, 2))
             else:
@@ -237,8 +241,8 @@ def decode_ac(bits, acht):
 def idct2(block):
     return idct(idct(block.T, norm='ortho').T, norm='ortho')
 
-last_dc = 0
-def handle_block(bits, dcht, acht, qt):
+last_dc = {1: 0, 2: 0, 3: 0}
+def handle_block(bits, C, dcht, acht, qt):
     global last_dc
     block = [[0 for _ in range(8)] for _ in range(8)]
     serial = []
@@ -246,8 +250,9 @@ def handle_block(bits, dcht, acht, qt):
     while i < 64:
         if i == 0:
             bits, val = decode_dc(bits, dcht)
-            val += last_dc
-            last_dc = val
+            debug_print(f"  last: {last_dc[C]}")
+            val += last_dc[C]
+            last_dc[C] = val
             #print("decode_dc:", val)
             serial.append(val)
             i += 1
@@ -286,6 +291,7 @@ def handle_block(bits, dcht, acht, qt):
     return bits, block
 
 def handle_MCU(bits):
+    global last_dc
     Comps = SOF_0['Components']
     Y, Cb, Cr = 1, 2, 3
     Blocks = {}
@@ -300,12 +306,11 @@ def handle_MCU(bits):
         acht = Huffman_Tables[1][Ta]
         qt   = Quantization_Tables[comp['Tq']]
         Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
-        last_dc = 0
         for i in range(v):
             for j in range(h):
-                bits, b = handle_block(bits, dcht, acht, qt)
+                bits, b = handle_block(bits, C, dcht, acht, qt)
+                print("-"*100)
                 Blocks[C][i][j] = b
-                print(b)
     # up sample 
     max_v = max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
     max_h = max(Comps[Y]['H'], Comps[Cb]['H'], Comps[Cr]['H'])
@@ -342,6 +347,17 @@ def handle_MCU(bits):
 def handle_data(jpeg):
     x = SOF_0['X']
     y = SOF_0['Y']
+
+    bits = ''.join(format(byte, '08b') for byte in jpeg)
+    bits, rgb = handle_MCU(bits)
+    print("="*100)
+    bits, rgb = handle_MCU(bits)
+    print("="*100)
+    bits, rgb = handle_MCU(bits)
+    print("="*100)
+    bits, rgb = handle_MCU(bits)
+    perror("temp")
+
     pixels = [[[0, 0, 0] for _ in range(x)] for __ in range(y)]
     bits = ''.join(format(byte, '08b') for byte in jpeg)
     Comps = SOF_0['Components']
@@ -423,7 +439,19 @@ while True:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
         #print(SOS)
-        print(Huffman_Tables)
+        for k in Huffman_Tables[0][0]:
+            print(k, hex(Huffman_Tables[0][0][k]))
+        print("-"*50)
+        for k in Huffman_Tables[0][1]:
+            print(k, hex(Huffman_Tables[0][1][k]))
+        print("-"*50)
+        for k in Huffman_Tables[1][0]:
+            print(k, hex(Huffman_Tables[1][0][k]))
+        print("-"*50)
+        for k in Huffman_Tables[1][1]:
+            print(k, hex(Huffman_Tables[1][1][k]))
+        print("-"*50)
+        perror("temp1")
         handle_data(jpeg)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
