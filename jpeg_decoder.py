@@ -12,6 +12,7 @@ m_EOI   = b'\xFF\xD9'
 m_DHT   = b'\xFF\xC4'
 m_SOS   = b'\xFF\xDA'
 m_DHP   = b'\xFF\xDE'
+m_COM   = b'\xFF\xFE'
 
 def perror(err):
     print(err)
@@ -160,6 +161,10 @@ def handle_DHT(jpeg):
     DHT['Tables'] = Tables
     return DHT
 
+def handle_COM(jpeg):
+    Lc = bytes_to_int(pop_n(jpeg, 2))
+    pop_n(jpeg, Lc - 2)
+
 def handle_SOS(jpeg):
     SOS = {}
     Ls = bytes_to_int(pop_n(jpeg, 2))
@@ -202,14 +207,14 @@ def decode_dc(bits, dcht):
         if bits[:i] in dcht:
             code = bits[:i]
             bits = bits[i:]
-            debug_print("dc: {code}")
+            debug_print(f"dc: {code}  ")
             read_len = dcht[code]
-            debug_print(f"{read_len=}")
+            debug_print(f"{read_len=}  ")
             if read_len == 0:
                 return bits, 0
             code = bits[:read_len]
             bits = bits[read_len:]
-            debug_print("dc: {code}")
+            debug_print(f"dc: {code}\n")
             if code[0] == '0':
                 return bits, -((2**read_len - 1) - int(code, 2))
             else:
@@ -296,6 +301,7 @@ def handle_block(bits, C, dcht, acht, qt):
     debug_print_table(block, 8, 8)
     return bits, block
 
+
 def handle_MCU(bits):
     global last_dc
     Comps = SOF_0['Components']
@@ -312,6 +318,7 @@ def handle_MCU(bits):
         acht = Huffman_Tables[1][Ta]
         qt   = Quantization_Tables[comp['Tq']]
         Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
+        print(f"{C=}, {h=}, {v=}")
         for i in range(v):
             for j in range(h):
                 bits, b = handle_block(bits, C, dcht, acht, qt)
@@ -327,10 +334,14 @@ def handle_MCU(bits):
         v = comp['V']
         h = comp['H']
         _b = Blocks[C]
-        for i in range(mcu_h):
-            for j in range(mcu_v):
+        for i in range(mcu_v):
+            for j in range(mcu_h):
+                #print(f"{mcu_h=} {mcu_v=}")
                 ii = i * v // max_v
                 jj = j * h // max_h
+                #print(f"{ii=} {jj=}")
+                #print(f"{_b}")
+                #print(f"{MCU[C-1]}")
                 MCU[i][j][C-1] = _b[ii // 8][jj // 8][ii % 8][jj % 8]
     # map to RGB
     def bound(_x):
@@ -340,9 +351,9 @@ def handle_MCU(bits):
             return 0
         else:
             return round(_x)
-    rgb = [[[0, 0, 0] for _ in range(mcu_v)] for __ in range(mcu_h)]
-    for i in range(mcu_h):
-        for j in range(mcu_v):
+    rgb = [[[0, 0, 0] for _ in range(mcu_h)] for __ in range(mcu_v)]
+    for i in range(mcu_v):
+        for j in range(mcu_h):
             _Y, _Cb, _Cr = MCU[i][j]
             rgb[i][j][0] = bound(_Y + 1.402*(_Cr - 128))
             rgb[i][j][1] = bound(_Y - 0.34414*(_Cb - 128) - 0.71414*(_Cr - 128))
@@ -350,9 +361,6 @@ def handle_MCU(bits):
     return bits, rgb
 
 def handle_data(jpeg):
-
-
-    #bits = ''.join(format(byte, '08b') for byte in jpeg)
     bits = ""
     for i in range(len(jpeg)):
         if jpeg[i] == 0x00 and jpeg[i - 1] == 0xFF:
@@ -379,15 +387,22 @@ def handle_data(jpeg):
     for i in range(ceil(y / v)):
         for j in range(ceil(x / h)):
             bits, rgb = handle_MCU(bits)
-            mcu_v = len(rgb)
             mcu_h = len(rgb[0])
+            mcu_v = len(rgb)
+            #print(f"{mcu_v=} {mcu_h=}")
+
             for ii in range(mcu_v):
                 if i * mcu_v + ii >= y:
                     break
                 for jj in range(mcu_h):
                     if j * mcu_h + jj >= x:
                         break
+                    #print(len(rgb))
+                    #print(len(rgb[0]))
+                    #print(f"{mcu_h=} {mcu_v=}")
+                    #print(f"{ii=} {jj=}")
                     rgb888 = (rgb[ii][jj][0] << 16) + (rgb[ii][jj][1] << 8) + rgb[ii][jj][2]
+                    print("y:", i * mcu_h + ii, "x:", j * mcu_v+jj)
                     pixels[i * mcu_v + ii][j * mcu_h + jj] = rgb888
     return pixels
 
@@ -455,8 +470,9 @@ while True:
         image.gen_bmp_header()
         image.fill_image(pixels)
         image.save_image("save1.bmp")
-
-
+    elif wd == m_COM:
+        debug_print("COM\n")
+        handle_COM(jpeg)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
         debug_print("SOF_0\n")
