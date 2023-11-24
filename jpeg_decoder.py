@@ -14,14 +14,16 @@ m_SOS   = b'\xFF\xDA'
 m_DHP   = b'\xFF\xDE'
 m_COM   = b'\xFF\xFE'
 
+DEBUG = False
+
 def perror(err):
     print(err)
     exit(-1)
 
 def debug_print(msg):
-    #if True:
-    if False:
-        print(msg, end="")
+    if not DEBUG:
+        return
+    print(msg, end="")
 
 def pop_n(jpeg, n):
     words = jpeg[0:n]
@@ -39,6 +41,8 @@ def split_byte(b):
     return a, b
 
 def debug_print_table(t, n, m):
+    if not DEBUG:
+        return
     debug_print("    Table:\n")
     for i in range(n):
         debug_print("      ")
@@ -51,7 +55,7 @@ def handle_APP(jpeg):
     APP = {}
     La = bytes_to_int(pop_n(jpeg, 2))
     APP['La'] = La
-    debug_print(f"  La: {La}\n")
+    #debug_print(f"  La: {La}\n")
     # we skip APP for now
     pop_n(jpeg, La - 2)
     return APP
@@ -62,7 +66,7 @@ def handle_DQT(jpeg):
     DQT = {}
     Lq = bytes_to_int(pop_n(jpeg, 2))
     DQT['Lq'] = Lq
-    debug_print(f"  Lq: {Lq}\n")
+    #debug_print(f"  Lq: {Lq}\n")
     n = 2
     Tables = []
     while n != Lq:
@@ -72,14 +76,14 @@ def handle_DQT(jpeg):
         table['Pq'] = Pq
         table['Tq'] = Tq
         table['Qk'] = Qk
-        debug_print(f"  Pq: {Pq}, Tq: {Tq}, Qk: {Qk}\n")
+        #debug_print(f"  Pq: {Pq}, Tq: {Tq}, Qk: {Qk}\n")
         n += 1
         tmp = [[0 for _ in range(8)] for __ in range(8)]
         for z in range(64):
             i, j = zigzag_order[z]
             tmp[i][j] = (bytes_to_int(pop_n(jpeg, Qk//8)))
         table['arr'] = tmp
-        debug_print_table(tmp, 8, 8)
+        #debug_print_table(tmp, 8, 8)
         Tables.append(table)
         n += (Qk // 8) * 8 * 8
     DQT['Tables'] = Tables
@@ -90,23 +94,23 @@ def handle_DHP(jpeg):
 
     Lf = bytes_to_int(pop_n(jpeg, 2))
     DHP['Lf'] = Lf
-    debug_print(f"  Lf: {Lf}\n")
+    #debug_print(f"  Lf: {Lf}\n")
 
     P  = bytes_to_int(pop_n(jpeg, 1))
     DHP['P'] = P
-    debug_print(f"  P: {P}\n")
+    #debug_print(f"  P: {P}\n")
 
     Y  = bytes_to_int(pop_n(jpeg, 2))
     DHP['Y'] = Y
-    debug_print(f"  Y: {Y}\n")
+    #debug_print(f"  Y: {Y}\n")
 
     X  = bytes_to_int(pop_n(jpeg, 2))
     DHP['X'] = X
-    debug_print(f"  X: {X}\n")
+    #debug_print(f"  X: {X}\n")
 
     Nf = bytes_to_int(pop_n(jpeg, 1))
     DHP['Nf'] = Nf
-    debug_print(f"  Nf: {Nf}\n")
+    #debug_print(f"  Nf: {Nf}\n")
 
     Components = {}
     for _ in range(Nf):
@@ -114,7 +118,7 @@ def handle_DHP(jpeg):
         tmp['C'] = bytes_to_int(pop_n(jpeg, 1))
         tmp['H'], tmp['V'] = split_byte(bytes_to_int(pop_n(jpeg, 1)))
         tmp['Tq'] = bytes_to_int(pop_n(jpeg, 1))
-        debug_print(f"  {tmp}\n")
+        #debug_print(f"  {tmp}\n")
         Components[tmp['C']] = tmp
     DHP['Components'] = Components
     return DHP
@@ -126,7 +130,7 @@ def handle_DHT(jpeg):
     DHT = {}
     Lh = bytes_to_int(pop_n(jpeg, 2))
     DHT['Lh'] = Lh
-    debug_print(f"  Lh: {Lh}\n")
+    #debug_print(f"  Lh: {Lh}\n")
     n = 2 
 
     Tables = []
@@ -135,7 +139,7 @@ def handle_DHT(jpeg):
         Tc, Th = split_byte(bytes_to_int(pop_n(jpeg, 1)))
         table['Tc'] = Tc
         table['Th'] = Th
-        debug_print(f"    Tc: {Tc}, Th: {Th}\n")
+        #debug_print(f"    Tc: {Tc}, Th: {Th}\n")
         n += 1
 
         L = []
@@ -145,7 +149,7 @@ def handle_DHT(jpeg):
             cnt += l
             L.append(l)
         table['L'] = L
-        debug_print(f"    Li: {L}\n")
+        #debug_print(f"    Li: {L}\n")
         n += 16
 
         V = []
@@ -153,7 +157,7 @@ def handle_DHT(jpeg):
             v = []
             for _ in range(L[i]):
                 v.append(bytes_to_int(pop_n(jpeg, 1)))
-            debug_print(f"    V{i + 1},k: {v}\n")
+            #debug_print(f"    V{i + 1},k: {v}\n")
             V.append(v)
         table['V'] = V
         Tables.append(table)
@@ -169,11 +173,11 @@ def handle_SOS(jpeg):
     SOS = {}
     Ls = bytes_to_int(pop_n(jpeg, 2))
     SOS['Ls'] = Ls
-    debug_print(f"  Ls: {Ls}\n")
+    #debug_print(f"  Ls: {Ls}\n")
 
     Ns = bytes_to_int(pop_n(jpeg, 1))
     SOS['Ns'] = Ns
-    debug_print(f"  Ns: {Ns}\n")
+    #debug_print(f"  Ns: {Ns}\n")
 
     Scans = {}
     for _ in range(Ns):
@@ -183,20 +187,20 @@ def handle_SOS(jpeg):
         Td, Ta = split_byte(bytes_to_int(pop_n(jpeg, 1)))
         scan['Td'] = Td
         scan['Ta'] = Ta
-        debug_print(f"    Cs: {Cs}, Td: {Td}, Ta: {Ta}\n")
+        #debug_print(f"    Cs: {Cs}, Td: {Td}, Ta: {Ta}\n")
         Scans[Cs] = scan
     SOS['Scans'] = Scans
 
     Ss = bytes_to_int(pop_n(jpeg, 1))
     SOS['Ss'] = Ss
-    debug_print(f"  Ss: {Ss}\n")
+    #debug_print(f"  Ss: {Ss}\n")
     Se = bytes_to_int(pop_n(jpeg, 1))
     SOS['Se'] = Se
-    debug_print(f"  Se: {Se}\n")
+    #debug_print(f"  Se: {Se}\n")
     Ah, Al = split_byte(bytes_to_int(pop_n(jpeg, 1)))
     SOS['Ah'] = Ah
     SOS['Al'] = Al
-    debug_print(f"  Ah: {Ah}, Al: {Al}\n")
+    #debug_print(f"  Ah: {Ah}, Al: {Al}\n")
     return SOS
 
 # return remaining bitstream, value
@@ -207,14 +211,14 @@ def decode_dc(bits, dcht):
         if bits[:i] in dcht:
             code = bits[:i]
             bits = bits[i:]
-            debug_print(f"dc: {code}  ")
+            #debug_print(f"dc: {code}  ")
             read_len = dcht[code]
-            debug_print(f"{read_len=}  ")
+            #debug_print(f"{read_len=}  ")
             if read_len == 0:
                 return bits, 0
             code = bits[:read_len]
             bits = bits[read_len:]
-            debug_print(f"dc: {code}\n")
+            #debug_print(f"dc: {code}\n")
             if code[0] == '0':
                 return bits, -((2**read_len - 1) - int(code, 2))
             else:
@@ -228,16 +232,16 @@ def decode_ac(bits, acht):
             code = bits[:i]
             bits = bits[i:]
             out = acht[code]
-            debug_print(f"bits: {int(code, 2):010b}  RS: {out:#04x}  ")
+            #debug_print(f"bits: {int(code, 2):010b}  RS: {out:#04x}  ")
             if out == 0x00:
-                debug_print("\n")
+                #debug_print("\n")
                 return bits, 0, 64
             if out == 0xF0:
-                debug_print("\n")
+                #debug_print("\n")
                 return bits, 0, 15
             #print(f"{out=}")
             nz, read_len = split_byte(out)
-            debug_print(f"RRRR: {nz:2d}  SSSS: {read_len:2d}  ")
+            #debug_print(f"RRRR: {nz:2d}  SSSS: {read_len:2d}  ")
             code = bits[:read_len]
             bits = bits[read_len:]
             #print("ac:", code)
@@ -245,7 +249,7 @@ def decode_ac(bits, acht):
                 val = -((2**read_len - 1) - int(code, 2))
             else:
                 val = int(code, 2)
-            debug_print(f"ZZ(K): {int(code, 2):2d} val: {val:3d}\n")
+            #debug_print(f"ZZ(K): {int(code, 2):2d} val: {val:3d}\n")
             return bits, val, nz
     perror("AC decode failed")
 
@@ -261,7 +265,7 @@ def handle_block(bits, C, dcht, acht, qt):
     while i < 64:
         if i == 0:
             bits, val = decode_dc(bits, dcht)
-            debug_print(f"  last: {last_dc[C]}\n")
+            #debug_print(f"  last: {last_dc[C]}\n")
             val += last_dc[C]
             last_dc[C] = val
             #print("decode_dc:", val)
@@ -281,24 +285,24 @@ def handle_block(bits, C, dcht, acht, qt):
     for z in range(64):
         i, j = zigzag_order[z]
         block[i][j] = serial[z]
-    debug_print_table(block, 8, 8)
+    #debug_print_table(block, 8, 8)
     # de Quantization
     for i in range(8):
         for j in range(8):
             block[i][j] *= qt[i][j]
-    debug_print_table(block, 8, 8)
+    #debug_print_table(block, 8, 8)
     # IDCT
     block = idct2(np.array(block))
     for i in range(8):
         for j in range(8):
             block[i][j] = round(block[i][j])
     block = block.astype(np.int64)
-    debug_print_table(block, 8, 8)
+    #debug_print_table(block, 8, 8)
     # level shift
     for i in range(8):
         for j in range(8):
             block[i][j] += 128
-    debug_print_table(block, 8, 8)
+    #debug_print_table(block, 8, 8)
     return bits, block
 
 
@@ -439,46 +443,45 @@ Quantization_Tables = {}
 while True:
     wd = pop_n(jpeg, 2)
     if wd == m_APP:
-        debug_print("APP\n")
+        #debug_print("APP\n")
         APP = handle_APP(jpeg)
         #print(APP)
         APPs.append(APP)
     elif wd == m_DQT:
-        debug_print("DQT\n")
+        #debug_print("DQT\n")
         DQT = handle_DQT(jpeg)
         #print(DQT)
         contruct_quantization_table(Quantization_Tables, DQT)
         DQTs.append(DQT)
     elif wd == m_DHP:
-        debug_print("DHP\n")
+        #debug_print("DHP\n")
         DHP = handle_DHP(jpeg)
         #print(DHP)
     elif wd == m_DHT:
-        debug_print("DHT\n")
+        #debug_print("DHT\n")
         DHT = handle_DHT(jpeg)
         #print(DHT)
         DHTs.append(DHT)
         contruct_huffman_table(Huffman_Tables, DHT)
         #print(Huffman_Tables)
     elif wd == m_SOS:
-        debug_print("SOS\n")
+        #debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
         pixels = handle_data(jpeg)
+        print("done, saving to bmp...")
         image = bmp(SOF_0['X'], SOF_0['Y'])
         image.gen_bmp_header()
         image.fill_image(pixels)
         image.save_image("save1.bmp")
     elif wd == m_COM:
-        debug_print("COM\n")
+        #debug_print("COM\n")
         handle_COM(jpeg)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
-        debug_print("SOF_0\n")
+        #debug_print("SOF_0\n")
         SOF_0 = handle_SOF_0(jpeg)
         #print(SOF_0)
     else:
-        print(wd)
-        print("X")
         break
 
 
