@@ -64,7 +64,7 @@ class bmp:
         #write rgb data
         zeroBytes = self.dataSize // self.h - self.w * 3
 
-        for r in range(self.h):
+        for r in reversed(range(self.h)):
             l = []
             for i in range(len(self.rgbData[r])):
                 p = self.rgbData[r][i]

@@ -318,7 +318,6 @@ def handle_MCU(bits):
         acht = Huffman_Tables[1][Ta]
         qt   = Quantization_Tables[comp['Tq']]
         Blocks[C] = [[0 for _ in range(h)] for __ in range(v)]
-        print(f"{C=}, {h=}, {v=}")
         for i in range(v):
             for j in range(h):
                 bits, b = handle_block(bits, C, dcht, acht, qt)
@@ -402,7 +401,6 @@ def handle_data(jpeg):
                     #print(f"{mcu_h=} {mcu_v=}")
                     #print(f"{ii=} {jj=}")
                     rgb888 = (rgb[ii][jj][0] << 16) + (rgb[ii][jj][1] << 8) + rgb[ii][jj][2]
-                    print("y:", i * mcu_h + ii, "x:", j * mcu_v+jj)
                     pixels[i * mcu_v + ii][j * mcu_h + jj] = rgb888
     return pixels
 
