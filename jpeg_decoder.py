@@ -30,9 +30,9 @@ def bytes_to_int(b):
     return int.from_bytes(b, "big")
 
 def split_byte(b):
-    bits = format(b, '08b')
-    a = int(bits[0:4], 2)
-    b = int(bits[4:8], 2)
+    _bits = format(b, '08b')
+    a = int(_bits[0:4], 2)
+    b = int(_bits[4:8], 2)
     return a, b
 
 def debug_print_table(t, n, m):
@@ -222,12 +222,16 @@ def decode_ac(bits, acht):
             bits = bits[i:]
             #print("ac:", code)
             out = acht[code]
+            debug_print(f"bits: {int(code, 2):010b}  RS: {out:#04x}  ")
             if out == 0x00:
+                debug_print("\n")
                 return bits, 0, 64
             if out == 0xF0:
+                debug_print("\n")
                 return bits, 0, 15
             #print(f"{out=}")
             nz, read_len = split_byte(out)
+            debug_print(f"RRRR: {nz:2d}  SSSS: {read_len:2d}  ")
             code = bits[:read_len]
             bits = bits[read_len:]
             #print("ac:", code)
@@ -235,6 +239,7 @@ def decode_ac(bits, acht):
                 val = -((2**read_len - 1) - int(code, 2))
             else:
                 val = int(code, 2)
+            debug_print(f"ZZ(K): {int(code, 2):2d} val: {val:3d}\n")
             return bits, val, nz
     perror("AC decode failed")
 
@@ -250,7 +255,7 @@ def handle_block(bits, C, dcht, acht, qt):
     while i < 64:
         if i == 0:
             bits, val = decode_dc(bits, dcht)
-            debug_print(f"  last: {last_dc[C]}")
+            debug_print(f"  last: {last_dc[C]}\n")
             val += last_dc[C]
             last_dc[C] = val
             #print("decode_dc:", val)
@@ -348,18 +353,24 @@ def handle_data(jpeg):
     x = SOF_0['X']
     y = SOF_0['Y']
 
-    bits = ''.join(format(byte, '08b') for byte in jpeg)
-    bits, rgb = handle_MCU(bits)
-    print("="*100)
-    bits, rgb = handle_MCU(bits)
-    print("="*100)
-    bits, rgb = handle_MCU(bits)
-    print("="*100)
-    bits, rgb = handle_MCU(bits)
-    perror("temp")
+    #bits = ''.join(format(byte, '08b') for byte in jpeg)
+    bits = ""
+    for i in range(len(jpeg)):
+        if jpeg[i] == 0x00 and jpeg[i - 1] == 0xFF:
+            continue
+        bits += format(jpeg[i], '08b')
+
+    #bits, rgb = handle_MCU(bits)
+    #print("="*100)
+    #bits, rgb = handle_MCU(bits)
+    #print("="*100)
+    #bits, rgb = handle_MCU(bits)
+    #print("="*100)
+    #print("="*100)
+    #bits, rgb = handle_MCU(bits)
+    #perror("temp")
 
     pixels = [[[0, 0, 0] for _ in range(x)] for __ in range(y)]
-    bits = ''.join(format(byte, '08b') for byte in jpeg)
     Comps = SOF_0['Components']
     Y, Cb, Cr = 1, 2, 3
     v = max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
@@ -439,19 +450,19 @@ while True:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
         #print(SOS)
-        for k in Huffman_Tables[0][0]:
-            print(k, hex(Huffman_Tables[0][0][k]))
-        print("-"*50)
-        for k in Huffman_Tables[0][1]:
-            print(k, hex(Huffman_Tables[0][1][k]))
-        print("-"*50)
-        for k in Huffman_Tables[1][0]:
-            print(k, hex(Huffman_Tables[1][0][k]))
-        print("-"*50)
-        for k in Huffman_Tables[1][1]:
-            print(k, hex(Huffman_Tables[1][1][k]))
-        print("-"*50)
-        perror("temp1")
+        #for k in Huffman_Tables[0][0]:
+        #    print(k, hex(Huffman_Tables[0][0][k]))
+        #print("-"*50)
+        #for k in Huffman_Tables[0][1]:
+        #    print(k, hex(Huffman_Tables[0][1][k]))
+        #print("-"*50)
+        #for k in Huffman_Tables[1][0]:
+        #    print(k, hex(Huffman_Tables[1][0][k]))
+        #print("-"*50)
+        #for k in Huffman_Tables[1][1]:
+        #    print(k, hex(Huffman_Tables[1][1][k]))
+        #print("-"*50)
+        #perror("temp1")
         handle_data(jpeg)
     # Note we only handle SOF_0
     elif wd == m_SOF_0:
