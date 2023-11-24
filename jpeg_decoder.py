@@ -326,27 +326,27 @@ def handle_MCU(bits):
         comp = SOF_0['Components'][C]
         v = comp['V']
         h = comp['H']
-        cb = Blocks[C]
-        for i in range(mcu_v):
-            for j in range(mcu_h):
+        _b = Blocks[C]
+        for i in range(mcu_h):
+            for j in range(mcu_v):
                 ii = i * v // max_v
-                jj = i * h // max_h
-                MCU[i][j][C-1] = cb[ii // 8][jj // 8][ii % 8][jj % 8]
+                jj = j * h // max_h
+                MCU[i][j][C-1] = _b[ii // 8][jj // 8][ii % 8][jj % 8]
     # map to RGB
-    def bound(x):
-        if x > 255:
+    def bound(_x):
+        if _x > 255:
             return 255
-        elif x < 0:
+        elif _x < 0:
             return 0
         else:
-            return round(x)
-    rgb = [[[0, 0, 0] for _ in range(mcu_h)] for __ in range(mcu_v)]
-    for i in range(mcu_v):
-        for j in range(mcu_h):
-            y, cb, cr = MCU[i][j]
-            rgb[i][j][0] = bound(y + 1.402*cr + 128)
-            rgb[i][j][1] = bound(y - 0.34414*cb - 0.71414*cr + 128)
-            rgb[i][j][2] = bound(y + 1.772*cb + 128)
+            return round(_x)
+    rgb = [[[0, 0, 0] for _ in range(mcu_v)] for __ in range(mcu_h)]
+    for i in range(mcu_h):
+        for j in range(mcu_v):
+            _Y, _Cb, _Cr = MCU[i][j]
+            rgb[i][j][0] = bound(_Y + 1.402*(_Cr - 128))
+            rgb[i][j][1] = bound(_Y - 0.34414*(_Cb - 128) - 0.71414*(_Cr - 128))
+            rgb[i][j][2] = bound(_Y + 1.772*(_Cb - 128))
     return bits, rgb
 
 def handle_data(jpeg):
@@ -376,8 +376,6 @@ def handle_data(jpeg):
     x = SOF_0['X']
     y = SOF_0['Y']
     pixels = [[0 for _ in range(x)] for __ in range(y)]
-    print(ceil(y/v))
-    print(ceil(x/v))
     for i in range(ceil(y / v)):
         for j in range(ceil(x / h)):
             bits, rgb = handle_MCU(bits)
@@ -389,7 +387,7 @@ def handle_data(jpeg):
                 for jj in range(mcu_h):
                     if j * mcu_h + jj >= x:
                         break
-                    rgb888 = rgb[ii][jj][0] << 16 + rgb[ii][jj][1] << 8 + rgb[ii][jj][2]
+                    rgb888 = (rgb[ii][jj][0] << 16) + (rgb[ii][jj][1] << 8) + rgb[ii][jj][2]
                     pixels[i * mcu_v + ii][j * mcu_h + jj] = rgb888
     return pixels
 
