@@ -5,3 +5,4 @@ scipy, numpy for IDCT
 
 ## How to run the code:
 python3 jpeg_decoder.py [image.jpg]
+> the image will be stored as save1.bmp at the working directory
