@@ -18,7 +18,8 @@ def perror(err):
     exit(-1)
 
 def debug_print(msg):
-    if True:
+    #if True:
+    if False:
         print(msg, end="")
 
 def pop_n(jpeg, n):
@@ -201,14 +202,14 @@ def decode_dc(bits, dcht):
         if bits[:i] in dcht:
             code = bits[:i]
             bits = bits[i:]
-            print("dc:", code)
+            debug_print("dc: {code}")
             read_len = dcht[code]
-            print(f"{read_len=}")
+            debug_print(f"{read_len=}")
             if read_len == 0:
                 return bits, 0
             code = bits[:read_len]
             bits = bits[read_len:]
-            print("dc:", code)
+            debug_print("dc: {code}")
             if code[0] == '0':
                 return bits, -((2**read_len - 1) - int(code, 2))
             else:
@@ -221,7 +222,6 @@ def decode_ac(bits, acht):
         if bits[:i] in acht:
             code = bits[:i]
             bits = bits[i:]
-            #print("ac:", code)
             out = acht[code]
             debug_print(f"bits: {int(code, 2):010b}  RS: {out:#04x}  ")
             if out == 0x00:
@@ -315,7 +315,6 @@ def handle_MCU(bits):
         for i in range(v):
             for j in range(h):
                 bits, b = handle_block(bits, C, dcht, acht, qt)
-                print("-"*100)
                 Blocks[C][i][j] = b
     # up sample 
     max_v = max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
@@ -351,8 +350,7 @@ def handle_MCU(bits):
     return bits, rgb
 
 def handle_data(jpeg):
-    x = SOF_0['X']
-    y = SOF_0['Y']
+
 
     #bits = ''.join(format(byte, '08b') for byte in jpeg)
     bits = ""
@@ -371,11 +369,15 @@ def handle_data(jpeg):
     #bits, rgb = handle_MCU(bits)
     #perror("temp")
 
-    pixels = [[0 for _ in range(x)] for __ in range(y)]
     Comps = SOF_0['Components']
     Y, Cb, Cr = 1, 2, 3
-    v = max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
-    h = max(Comps[Y]['H'], Comps[Cb]['H'], Comps[Cr]['H'])
+    v = 8 * max(Comps[Y]['V'], Comps[Cb]['V'], Comps[Cr]['V'])
+    h = 8 * max(Comps[Y]['H'], Comps[Cb]['H'], Comps[Cr]['H'])
+    x = SOF_0['X']
+    y = SOF_0['Y']
+    pixels = [[0 for _ in range(x)] for __ in range(y)]
+    print(ceil(y/v))
+    print(ceil(x/v))
     for i in range(ceil(y / v)):
         for j in range(ceil(x / h)):
             bits, rgb = handle_MCU(bits)
@@ -406,7 +408,6 @@ def contruct_huffman_table(Tables, dht):
 
 def contruct_quantization_table(Quantization_Tables, dqt):
     for table in dqt['Tables']:
-        print(table)
         Quantization_Tables[table['Tq']] = table['arr']
 
 if len(sys.argv) != 2:
@@ -451,20 +452,6 @@ while True:
     elif wd == m_SOS:
         debug_print("SOS\n")
         SOS = handle_SOS(jpeg)
-        #print(SOS)
-        #for k in Huffman_Tables[0][0]:
-        #    print(k, hex(Huffman_Tables[0][0][k]))
-        #print("-"*50)
-        #for k in Huffman_Tables[0][1]:
-        #    print(k, hex(Huffman_Tables[0][1][k]))
-        #print("-"*50)
-        #for k in Huffman_Tables[1][0]:
-        #    print(k, hex(Huffman_Tables[1][0][k]))
-        #print("-"*50)
-        #for k in Huffman_Tables[1][1]:
-        #    print(k, hex(Huffman_Tables[1][1][k]))
-        #print("-"*50)
-        #perror("temp1")
         pixels = handle_data(jpeg)
         image = bmp(SOF_0['X'], SOF_0['Y'])
         image.gen_bmp_header()
