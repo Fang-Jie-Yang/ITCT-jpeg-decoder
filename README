@@ -1,0 +1,7 @@
+# README
+
+## python dependencies:
+scipy, numpy for IDCT
+
+## How to run the code:
+python3 jpeg_decoder.py [image.jpg]
